@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"   # Main API Gateway for all AWS services
+      - "4571:4571"   # Edge services
+    environment:
+      - SERVICES=sns,sqs,lambda,cloudformation,iam
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data  # Persist data between runs (optional)
+      - LAMBDA_EXECUTOR=docker-reuse
+      - LOCALSTACK_HOST=localhost
+    volumes:
+      - ./bootstrap.sh:/etc/localstack/init/ready.d/bootstrap.sh  # Auto run setup script
+      - /var/run/docker.sock:/var/run/docker.sock
