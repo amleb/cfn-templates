@@ -7,11 +7,11 @@ services:
       - "4566:4566"   # Main API Gateway for all AWS services
       - "4571:4571"   # Edge services
     environment:
-      - SERVICES=sns,sqs,lambda,cloudformation,iam
+      - SERVICES=sns,sqs,lambda,cloudformation,iam,logs
       - DEBUG=1
       - DATA_DIR=/tmp/localstack/data  # Persist data between runs (optional)
       - LAMBDA_EXECUTOR=docker-reuse
       - LOCALSTACK_HOST=localhost
+      - AWS_DEFAULT_REGION=us-east-1
     volumes:
-      - ./bootstrap.sh:/etc/localstack/init/ready.d/bootstrap.sh  # Auto run setup script
       - /var/run/docker.sock:/var/run/docker.sock
