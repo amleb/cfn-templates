@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation template with SNS Topic, High and Low Priority SQS Queues, and a Lambda function.
+
+Resources:
+
+  PrioritySNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: priority-sns-topic
+
+  HighPriorityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: high-priority-queue
+
+  LowPriorityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: low-priority-queue
+
+  # SNS Subscriptions to SQS Queues
+  HighPrioritySubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref PrioritySNSTopic
+      Protocol: sqs
+      Endpoint: !GetAtt HighPriorityQueue.Arn
+      RawMessageDelivery: true
+      FilterPolicy:
+        Priority:
+          - high
+
+  LowPrioritySubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref PrioritySNSTopic
+      Protocol: sqs
+      Endpoint: !GetAtt LowPriorityQueue.Arn
+      RawMessageDelivery: true
+      FilterPolicy:
+        Priority:
+          - low
+
+
+  # Policy to allow SNS to send messages to SQS
+  HighPriorityQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref HighPriorityQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "SQS:SendMessage"
+            Resource: !GetAtt HighPriorityQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref PrioritySNSTopic
+
+  LowPriorityQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref LowPriorityQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "SQS:SendMessage"
+            Resource: !GetAtt LowPriorityQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref PrioritySNSTopic
+
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lambda-sqs-handler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: lambda-sqs-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt HighPriorityQueue.Arn
+                  - !GetAtt LowPriorityQueue.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  # Lambda Function
+  PriorityQueueHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: priority-queue-handler
+      Runtime: nodejs18.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Handler: index.handler
+      Timeout: 30
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log("Received event:", JSON.stringify(event, null, 2));
+            for (const record of event.Records) {
+              console.log("Processing message:", record.body);          
+            }
+            return {};
+          }
+
+  # Event Source Mappings for Lambda to SQS
+  HighPriorityEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt HighPriorityQueue.Arn
+      FunctionName: !Ref PriorityQueueHandlerFunction
+      Enabled: true
+
+  LowPriorityEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt LowPriorityQueue.Arn
+      FunctionName: !Ref PriorityQueueHandlerFunction
+      Enabled: true
+
+Outputs:
+  SNSTopicArn:
+    Description: ARN of the SNS Topic
+    Value: !Ref PrioritySNSTopic
+
+  HighPriorityQueueUrl:
+    Description: URL of the High Priority SQS Queue
+    Value: !Ref HighPriorityQueue
+
+  LowPriorityQueueUrl:
+    Description: URL of the Low Priority SQS Queue
+    Value: !Ref LowPriorityQueue
+
+  LambdaFunctionName:
+    Description: Name of the Lambda Function
+    Value: !Ref PriorityQueueHandlerFunction

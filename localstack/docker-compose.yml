@@ -4,12 +4,12 @@ services:
   localstack:
     image: localstack/localstack:latest
     ports:
-      - "4566:4566"   # Main API Gateway for all AWS services
-      - "4571:4571"   # Edge services
+      - "4566:4566"
+      - "4571:4571"
     environment:
-      - SERVICES=sns,sqs,lambda,cloudformation,iam,logs
+      - SERVICES=sns,sqs,lambda,cloudformation,iam,logs,s3
       - DEBUG=1
-      - DATA_DIR=/tmp/localstack/data  # Persist data between runs (optional)
+      - DATA_DIR=/tmp/localstack/data
       - LAMBDA_EXECUTOR=docker-reuse
       - LOCALSTACK_HOST=localhost
       - AWS_DEFAULT_REGION=us-east-1

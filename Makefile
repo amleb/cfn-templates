@@ -2,12 +2,20 @@
 
 LOCALSTACK_URL=http://localhost:4566
 PROFILE=localstack
+BOOTSTRAP_TEMPLATE=file://templates/priority_queue/template.yaml
 
-.PHONY: up down logs shell clean
+.PHONY: up bootstrap down logs shell clean
 
 up:
 	@echo "🚀 Starting LocalStack..."
 	docker-compose -f localstack/docker-compose.yml up -d
+
+bootstrap:
+	@echo "☁️ Bootstrapping some resources..."
+	aws --endpoint-url=$(LOCALSTACK_URL) cloudformation create-stack \
+        --stack-name local-priority-stack \
+        --template-body $(BOOTSTRAP_TEMPLATE) \
+        --profile $(PROFILE)
 
 down:
 	@echo "🛑 Stopping LocalStack..."
